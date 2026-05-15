@@ -1,0 +1,12 @@
+# binaries
+chirpy-server-go
+out
+*.exe
+
+# Go build output
+/bin/
+/dist/
+
+# OS
+.DS_Store
+Thumbs.db
