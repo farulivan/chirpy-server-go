@@ -7,6 +7,7 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/farulivan/chirpy-server-go/internal/auth"
 	"github.com/google/uuid"
 )
 
@@ -24,12 +25,23 @@ func (cfg *apiConfig) handlerPolkaWebhook(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	apiKey, err := auth.GetAPIKey(r.Header)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "Couldn't find API key", err)
+		return
+	}
+
+	if apiKey != cfg.polkaKey {
+		respondWithError(w, http.StatusUnauthorized, "Invalid API key", nil)
+		return
+	}
+
 	if params.Event != "user.upgraded" {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
 
-	_, err := cfg.db.UpdateUserToChirpyRed(context.Background(), params.Data.UserId)
+	_, err = cfg.db.UpdateUserToChirpyRed(context.Background(), params.Data.UserId)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			respondWithError(w, http.StatusNotFound, "User not found", nil)
