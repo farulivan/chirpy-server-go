@@ -104,13 +104,27 @@ func getCleanedBody(body string, profaneWords map[string]struct{}) string {
 }
 
 func (cfg *apiConfig) handlerGetChirps(w http.ResponseWriter, r *http.Request) {
-	dbChirps, err := cfg.db.GetChirps(r.Context())
+	var (
+		dbChirps []database.Chirp
+		err      error
+	)
+
+	if authorIDStr := r.URL.Query().Get("author_id"); authorIDStr != "" {
+		authorID, parseErr := uuid.Parse(authorIDStr)
+		if parseErr != nil {
+			respondWithError(w, http.StatusBadRequest, "Invalid author_id", parseErr)
+			return
+		}
+		dbChirps, err = cfg.db.GetChipryByAuthor(r.Context(), authorID)
+	} else {
+		dbChirps, err = cfg.db.GetChirps(r.Context())
+	}
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Couldn't get chirps", err)
 		return
 	}
 
-	chirps := []Chirp{}
+	chirps := make([]Chirp, 0, len(dbChirps))
 	for _, c := range dbChirps {
 		chirps = append(chirps, Chirp{
 			ID:        c.ID,
