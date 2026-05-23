@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"slices"
 	"strings"
 
 	"time"
@@ -103,22 +104,36 @@ func getCleanedBody(body string, profaneWords map[string]struct{}) string {
 	return cleaned
 }
 
+func getAuthorID(r *http.Request) (uuid.UUID, error) {
+	authorIDStr := r.URL.Query().Get("author_id")
+	if authorIDStr == "" {
+		return uuid.Nil, nil
+	}
+	authorID, parseErr := uuid.Parse(authorIDStr)
+	if parseErr != nil {
+		return uuid.Nil, parseErr
+	}
+	return authorID, nil
+}
+
 func (cfg *apiConfig) handlerGetChirps(w http.ResponseWriter, r *http.Request) {
 	var (
 		dbChirps []database.Chirp
 		err      error
 	)
 
-	if authorIDStr := r.URL.Query().Get("author_id"); authorIDStr != "" {
-		authorID, parseErr := uuid.Parse(authorIDStr)
-		if parseErr != nil {
-			respondWithError(w, http.StatusBadRequest, "Invalid author_id", parseErr)
-			return
-		}
+	authorID, err := getAuthorID(r)
+	if err != nil {
+		respondWithError(w, http.StatusBadRequest, "Invalid author_id", err)
+		return
+	}
+
+	if authorID != uuid.Nil {
 		dbChirps, err = cfg.db.GetChipryByAuthor(r.Context(), authorID)
 	} else {
 		dbChirps, err = cfg.db.GetChirps(r.Context())
 	}
+
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Couldn't get chirps", err)
 		return
@@ -133,6 +148,11 @@ func (cfg *apiConfig) handlerGetChirps(w http.ResponseWriter, r *http.Request) {
 			Body:      c.Body,
 			UserId:    c.UserID,
 		})
+	}
+
+	sortOrder := r.URL.Query().Get("sort")
+	if sortOrder == "desc" {
+		slices.Reverse(chirps)
 	}
 
 	respondWithJSON(w, http.StatusOK, chirps)
